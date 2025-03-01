@@ -1,0 +1,199 @@
+
+
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300&display=swap');
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+    font-size: 16px;
+  }
+
+  
+  .app-container {
+    background: #222;
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    margin: 15px 0;
+    width: 400px;
+    margin-bottom: 16px;
+    
+  } 
+  
+  .checkbox-group {
+    flex-direction: flex;
+    align-items: center;
+    margin-top: 10px;
+  }
+  
+  .checkbox-group label {
+    font-size: 0.825rem;
+    margin-left: 10px;
+  }
+  
+  .form-group label {
+    color: #eee;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  
+  .form-group input {
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    outline: none;
+    background-color: #555;
+    color: #eee;
+    font-family: 'Poppins', sans-serif;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    outline: 1px solid 444;
+    font-size: 18px;
+  }
+  
+  .form-group input::placeholder {
+    color: #eee;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+  }
+
+  .form-group .input-error {
+    outline: 1px solid rgb(255, 72, 72);
+  }
+  
+  .form-group .error-message {
+    color: rgb(255, 72, 72);
+    font-size: 12px;
+    margin-top: 1px;
+  }
+  
+  .form-group select {
+    font-family: 'Poppins', sans-serif;
+    font-size: 16px;
+    color: #999;
+    padding: 12px;
+    border: none;
+    border-radius: 5px;
+    outline: none;
+    background-color: #555;
+    color: #eee;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    max-width: 400px;
+  }
+  
+  .form-group button {
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    color: #eee;
+    background-color: #49a1b8;
+    font-weight: 500;
+    font-size: 1rem;
+    margin-top: 10px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    transition: background-color 0.3s ease;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .form-group select option {
+    font-family: 'Poppins', sans-serif;
+    
+  }
+  
+  .form-group button:hover {
+    cursor: pointer;
+    background-color: #61dbfb;
+  }
+
+
+
+  .form-group {
+    position: relative;
+    margin-bottom: 16px;
+    width: 400px;
+  }
+  
+  .form-group label {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    font-size: 16px;
+    color: #aaa;
+    pointer-events: none;
+    transition: all 0.3s ease;
+  }
+  
+  .form-group input {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    background-color: #555;
+    border: none;
+    border-radius: 5px;
+    outline: none;
+    color: #eee;
+    font-family: 'Poppins', sans-serif;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    margin-bottom: 8px;
+
+  }
+  
+  .form-group input:focus + label,
+  .form-group .label-focused {
+    top: -26px;
+    left: 12px;
+    font-size: 16px;
+    color: #c5c5c5;
+  }
+
+  .form-group-checkbox {
+    display: flex;
+    flex-direction: column;
+    margin: 15px 0;
+    width: 400px;
+    margin-bottom: 16px;
+    
+  } 
+
+  .form-group-checkbox label
+  {
+    top: 12px;
+    left: 12px;
+    font-size: 16px;
+    color: #aaa;
+    pointer-events: none;
+    transition: all 0.3s ease;
+  }
+
+  .form-group-checkbox .input-error {
+    outline: 1px solid rgb(255, 72, 72);
+  }
+  
+  .form-group-checkbox .error-message {
+    color: rgb(255, 72, 72);
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  

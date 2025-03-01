@@ -1,0 +1,59 @@
+/* Reset básico */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  html, body, #root {
+    height: 100%;
+  }
+  
+  .app {
+    display: flex;
+    height: 100%;
+  }
+  
+  /* Sidebar */
+  .sidebar {
+    width: 200px;
+    background-color: #333;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  
+  .sidebar-item:hover {
+    background-color: #444;
+  }
+  
+  .sidebar-item span {
+    margin-left: 10px;
+    font-size: 18px;
+  }
+  
+  /* Conteúdo principal */
+  .main-content {
+    flex: 1;
+    padding: 20px;
+  }
+  
+  .content {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+  }
+  
