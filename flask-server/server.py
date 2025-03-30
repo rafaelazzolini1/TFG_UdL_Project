@@ -3,7 +3,7 @@ from flask_cors import CORS
 import nacl.secret
 import nacl.utils
 from nacl.encoding import Base64Encoder
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_community.utilities import SQLDatabase
 from langchain.chains import create_sql_query_chain
 from langchain_community.vectorstores import FAISS
@@ -17,12 +17,19 @@ from langchain_core.prompts import (
 from langchain_huggingface import HuggingFaceEmbeddings
 import re
 import time
+from sqlalchemy import text
 
 app = Flask(__name__)
 CORS(app)
 
-database_uri = "mssql+pyodbc://@DESKTOP-5CU5M7P/Teste_RAG?driver=ODBC+Driver+17+for+SQL+Server"
+database_uri = "mssql+pyodbc://@RAPHAEL_PC/Teste_RAG?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 sql_db = SQLDatabase.from_uri(database_uri)
+# 🔍 Teste se o banco contém dados
+with sql_db._engine.connect() as conn:
+    result = conn.execute(text("SELECT COUNT(*) FROM Funcionario"))
+    print(f"Total de funcionários no banco: {result.scalar()}")
+
+
 llm = ChatOllama(model="deepseek-r1:7b", base_url="http://localhost:11434", temperature=0, max_tokens=100)  # Limite de tokens
 # llm = ChatOllama(model="deepseek-r1:1.5b", base_url="http://localhost:11434", temperature=0)
 
@@ -36,9 +43,53 @@ promptValid = ChatPromptTemplate.from_messages([
 valid_chain = promptValid | llm
 
 examples = [
-    {"input": "Quanto é o saldo de salário do Usuário1?", "query": "SELECT (Salario/30) * DAY([DataDemissao]) AS SaldoSalario FROM [Funcionario] WHERE [Nome] = 'Usuário1'"},
-    {"input": "Qual a politica de ferias da empresa?", "query": "SELECT PoliticaDescricao AS Politica FROM Politicas WHERE PoliticaNome LIKE '%Ferias%'"}
+    {
+        "input": "Quanto é o saldo de salário do Usuário1?",
+        "query": "SELECT (Salario / 30.0) * DATEDIFF(day, DATEFROMPARTS(YEAR(DataDemissao), MONTH(DataDemissao), 1), DataDemissao) AS SaldoSalario FROM Funcionario WHERE Nome = 'Usuário1'"
+    },
+    {
+        "input": "Qual o valor do décimo terceiro proporcional do funcionário Carlos Almeida?",
+        "query": "SELECT (Salario / 12.0) * DATEDIFF(month, DATEFROMPARTS(YEAR(GETDATE()), 1, 1), GETDATE()) AS DecimoTerceiro FROM Funcionario WHERE Nome = 'Carlos Almeida'"
+    },
+    {
+        "input": "Qual o valor do FGTS total do funcionário João Gomes?",
+        "query": "SELECT (Salario * 0.08) * DATEDIFF(month, DataAdmissao, GETDATE()) AS FGTS FROM Funcionario WHERE Nome = 'João Gomes'"
+    },
+    {
+        "input": "Qual o valor da multa de 40% do FGTS do funcionário João Gomes?",
+        "query": "SELECT 0.4 * (Salario * 0.08) * DATEDIFF(month, DataAdmissao, GETDATE()) AS MultaFGTS FROM Funcionario WHERE Nome = 'João Gomes'"
+    },
+    {
+        "input": "Qual o valor da folha de pagamento total da empresa?",
+        "query": "SELECT SUM(Salario) AS FolhaPagamento FROM Funcionario WHERE DataDemissao IS NULL"
+    },
+    {
+        "input": "Qual a política de férias da empresa?",
+        "query": "SELECT PoliticaDescricao AS Politica FROM Politicas WHERE PoliticaNome LIKE '%Ferias%'"
+    },
+    {
+        "input": "Qual o salário do funcionário João?",
+        "query": "SELECT Salario FROM Funcionario WHERE Nome = 'João'"
+    },
+    {
+        "input": "Qual o salário do funcionário Carlos Almeida?",
+        "query": "SELECT Salario FROM Funcionario WHERE Nome = 'Carlos Almeida'"
+    },
+    {
+        "input": "Há quantos meses o funcionário Carlos Almeida trabalha na empresa?",
+        "query": "SELECT DATEDIFF(month, DataAdmissao, GETDATE()) AS MesesTrabalhados FROM Funcionario WHERE Nome = 'Carlos Almeida'"
+    },
+    {
+        "input": "Qual a média salarial dos funcionários?",
+        "query": "SELECT AVG(Salario) AS MediaSalarial FROM Funcionario"
+    },
+    {
+        "input": "Quantos funcionários estão ativos?",
+        "query": "SELECT COUNT(*) AS TotalAtivos FROM Funcionario WHERE DataDemissao IS NULL"
+    }
 ]
+
+
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 example_selector = SemanticSimilarityExampleSelector.from_examples(examples, embeddings, FAISS, k=2, input_keys=["input"])
 
@@ -48,14 +99,17 @@ Aqui está o esquema do banco de dados disponível:
 
 Através de uma pergunta feita num input, crie uma query SQL SERVER sintaticamente correta para executar.
 Use SOMENTE as colunas e tabelas listadas em {table_info}. Retorne APENAS a query SQL, sem explicações, raciocínio ou texto adicional, dentro de delimitadores ```sql ... ```.
-Se o usuário não especificar a quantidade de exemplos de retorno, limite sua query a no máximo {top_k} resultados.
-Você pode ordenar os resultados por uma coluna relevante para retornar os exemplos mais interessantes da base de dados.
-Nunca faça uma busca por todas as colunas de uma tabela específica, apenas busque pelas colunas mais relevantes de acordo com a pergunta.
-Você DEVE verificar duas vezes sua query antes de executá-la.
-NÃO faça nenhum comando de DML (INSERT, UPDATE, DELETE, DROP etc.) na base de dados.
-Se a pergunta não parecer relacionada à base de dados, retorne "Eu não sei" como resposta.
 
-Aqui estão alguns exemplos de inputs de usuário e suas querys correspondentes:"""
+Se a pergunta não especificar a quantidade de exemplos de retorno, limite sua query a no máximo {top_k} resultados.
+Você pode ordenar por colunas relevantes para tornar a resposta mais útil.
+Nunca use SELECT *, só as colunas relevantes.
+Use DATEDIFF ao trabalhar com datas.
+Nunca traduza os nomes das colunas. Use **exatamente** como estão no schema.
+Se a pergunta não for sobre a base, responda "Eu não sei".
+
+Aqui estão alguns exemplos de perguntas e queries correspondentes:
+"""
+
 
 few_shot_prompt = FewShotPromptTemplate(
     example_selector=example_selector,
