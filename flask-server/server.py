@@ -23,21 +23,52 @@ CORS(app)
 
 database_uri = "mssql+pyodbc://@DESKTOP-5CU5M7P/Teste_RAG?driver=ODBC+Driver+17+for+SQL+Server"
 sql_db = SQLDatabase.from_uri(database_uri)
+
+
+# Tested models
+# llm = ChatOllama(model="llama3:latest", base_url="http://localhost:11434", temperature=0, max_tokens=100)  # Limite de tokens
 llm = ChatOllama(model="deepseek-r1:7b", base_url="http://localhost:11434", temperature=0, max_tokens=100)  # Limite de tokens
 # llm = ChatOllama(model="deepseek-r1:1.5b", base_url="http://localhost:11434", temperature=0)
+# llm = ChatOllama(model="codellama:7b", base_url="http://localhost:11434", temperature=0, max_tokens=100)
+# llm = ChatOllama(model="mistral-small", base_url="http://localhost:11434", temperature=0.1, max_tokens=100)  # Limite de tokens
+# llm = ChatOllama(model="mistral:latest", base_url="http://localhost:11434", temperature=0, max_tokens=100)  # Limite de tokens
 
 TABLE_INFO = sql_db.get_table_info()  # Cache do esquema
+print(f"Esquema:" + TABLE_INFO)
+
 
 promptValid = ChatPromptTemplate.from_messages([
-    ("system", "Você é um agente inteligente que verifica se uma frase se relaciona com salário, pagamentos, dinheiro, raça, religião ou orientação sexual. "
-               "Retorne apenas 'Bloqueado' se houver relação, ou 'Permitido' caso contrário."),
+        (
+            "system",
+            "Você é um agente inteligente cuja função é interpretar se uma informação é bloqueada ou permitida.\
+             Você deve verificar se a frase contida em input se relaciona de alguma forma com temas que envolvam salário, pagamentos, dinheiro, raça, religião, orientação sexual\
+            Se considerar que existe alguma relação, retorne a palavra 'Bloqueado'\
+            Caso contrário apenas retorne a palavra 'Permitido'\
+            ",
+        ),
     ("user", "{input}"),
 ])
 valid_chain = promptValid | llm
 
 examples = [
-    {"input": "Quanto é o saldo de salário do Usuário1?", "query": "SELECT (Salario/30) * DAY([DataDemissao]) AS SaldoSalario FROM [Funcionario] WHERE [Nome] = 'Usuário1'"},
-    {"input": "Qual a politica de ferias da empresa?", "query": "SELECT PoliticaDescricao AS Politica FROM Politicas WHERE PoliticaNome LIKE '%Ferias%'"}
+    {"input": "Quanto é o saldo de salário do Usuário1?",
+     "query": "SELECT (Salario/30) * DAY([DataDemissao]) AS SaldoSalario FROM [Funcionario] WHERE [Nome] = 'Usuário1'"
+    },
+    {"input": "Qual o valor do décimo terceiro proporcional do funcionário Carlos Almeida?",
+     "query": "select (Salario/12) * DATEDIFF(month, cast(dateadd(yy, datediff(yy, 0, GETDATE()), 0) as date), cast(getdate() as date)) AS DateDiff from Funcionario where nome = 'Carlos Almeida'"
+    },
+    {"input": "Qual o valor do FGTS total do funcionário João Gomes?",
+     "query": "select (Salario * 0.08) * DATEDIFF(month, DataAdmissao, cast(getdate() as date)) AS FGTS from Funcionario where nome = 'João Gomes'; "
+    },
+    {"input": "Qual o valor da multa de 40% do funcionário João Gomes?",
+     "query": "select 0.4 * (Salario * 0.08) * DATEDIFF(month, DataAdmissao, cast(getdate() as date)) AS FGTS from Funcionario where nome = 'João Gomes'; "
+    },
+    {"input": "Qual o valor da folha de pagamento total da empresa?",
+     "query": "select sum(Salario) as FolhaPagamento from Funcionario Where DataDemissao is Null"
+    },
+    {"input": "Qual a politica de ferias da empresa?",
+     "query": "select PoliticaDescricao as Politica from Politicas Where PoliticaNome like '%Ferias%'" 
+    }
 ]
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 example_selector = SemanticSimilarityExampleSelector.from_examples(examples, embeddings, FAISS, k=2, input_keys=["input"])
@@ -46,14 +77,14 @@ system_prefix = """Você é um agente desenvolvido para interagir com uma base d
 Aqui está o esquema do banco de dados disponível:
 {table_info}
 
-Através de uma pergunta feita num input, crie uma query SQL SERVER sintaticamente correta para executar.
+Através de uma pergunta feita num input, crie uma query SQL SERVER sintaticamente correta de acordo com a informação do esquema do banco de dados fornecido, ela deve ser executada.
 Use SOMENTE as colunas e tabelas listadas em {table_info}. Retorne APENAS a query SQL, sem explicações, raciocínio ou texto adicional, dentro de delimitadores ```sql ... ```.
+Se a pergunta não for clara ou não puder ser respondida com base no esquema, retorne ```sql SELECT 'Eu não sei' AS Resposta ```.
 Se o usuário não especificar a quantidade de exemplos de retorno, limite sua query a no máximo {top_k} resultados.
 Você pode ordenar os resultados por uma coluna relevante para retornar os exemplos mais interessantes da base de dados.
 Nunca faça uma busca por todas as colunas de uma tabela específica, apenas busque pelas colunas mais relevantes de acordo com a pergunta.
 Você DEVE verificar duas vezes sua query antes de executá-la.
 NÃO faça nenhum comando de DML (INSERT, UPDATE, DELETE, DROP etc.) na base de dados.
-Se a pergunta não parecer relacionada à base de dados, retorne "Eu não sei" como resposta.
 
 Aqui estão alguns exemplos de inputs de usuário e suas querys correspondentes:"""
 
@@ -127,6 +158,8 @@ def receber_dados():
                 query = query_match.group(1).strip()
             else:
                 query = raw_output.strip()
+                if not query.startswith("SELECT"):  # Verifica se é uma query válida
+                    query = "SELECT 'Eu não sei' AS Resposta"
             print(f"Query gerada: {query}")
 
             start_time = time.time()
