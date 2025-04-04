@@ -15,9 +15,16 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.messages import SystemMessage
 import re
 import time
 from sqlalchemy import text
+from langchain.agents import initialize_agent, AgentType, Tool
+from langchain_community.tools.sql_database.tool import (
+    QuerySQLDataBaseTool,
+    InfoSQLDatabaseTool,
+    ListSQLDatabaseTool
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -29,7 +36,7 @@ with sql_db._engine.connect() as conn:
     result = conn.execute(text("SELECT COUNT(*) FROM Funcionario"))
     print(f"Total de funcionários no banco: {result.scalar()}")
 
-
+#llm = ChatOllama(model="mistral:latest", base_url="http://localhost:11434", temperature=0, max_tokens=100)  # Limite de tokens
 llm = ChatOllama(model="deepseek-r1:7b", base_url="http://localhost:11434", temperature=0, max_tokens=100)  # Limite de tokens
 # llm = ChatOllama(model="deepseek-r1:1.5b", base_url="http://localhost:11434", temperature=0)
 
@@ -217,6 +224,89 @@ def receber_dados():
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     return response
+
+tools = [
+    Tool(
+        name="Schema Info",
+        func=InfoSQLDatabaseTool(db=sql_db),
+        description="Usado para entender a estrutura do banco de dados"
+    ),
+    Tool(
+        name="List Tables",
+        func=ListSQLDatabaseTool(db=sql_db),
+        description="Lista todas as tabelas do banco de dados"
+    ),
+    Tool(
+        name="Query Checker",
+        func=QuerySQLDataBaseTool(db=sql_db),
+        description="Executa queries SQL. Use só após montar a query final."
+    )
+]
+
+react_agent = initialize_agent(
+    tools=tools,
+    llm=llm,
+    agent=AgentType.CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+    verbose=True,
+    handle_parsing_errors=True
+)
+
+# 🔧 Instrução clara para formatar como ReAct corretamente
+react_agent.agent.llm_chain.prompt.messages.insert(0, SystemMessage(content="""
+Você é um agente que responde perguntas usando ferramentas. Quando gerar sua resposta, Siga **este formato exato**:
+
+Thought: descreva seu raciocínio lógico em uma frase curta.
+Action: o nome exato da ferramenta (por exemplo: Schema Info, List Tables, Query Checker).
+Action Input: a entrada exata para a ferramenta.
+
+Depois de usar as ferramentas, forneça a **resposta final** usando:
+Final Answer: [Sua resposta final, como uma sentença ou uma query].
+
+**Não use markdown, não inclua tags como `<think>`. Apenas siga o formato acima.**
+"""))
+
+@app.route('/api/react', methods=['POST'])
+def usar_agente_react():
+    dados = request.json
+    pergunta = dados.get("input")
+
+    if not pergunta:
+        return jsonify({"erro": "Campo 'input' é obrigatório."}), 400
+
+    try:
+        start_time = time.time()
+        resposta = react_agent.run(pergunta)
+        tempo_total = time.time() - start_time
+
+        print(f"[ReAct] Pergunta: {pergunta}")
+        print(f"[ReAct] Resposta: {resposta}")
+        print(f"[ReAct] Tempo total: {tempo_total:.2f} segundos")
+
+        # Extrair a query gerada da resposta
+        query_match = re.search(r'```sql\s*(.*?)\s*```', resposta, re.DOTALL)
+        if query_match:
+            query = query_match.group(1).strip()
+        else:
+            return jsonify({"erro": "Query inválida gerada."}), 400
+
+        # Executar a query no banco de dados
+        start_time = time.time()
+        result_db = sql_db.run(query)
+        print(f"[ReAct] Tempo de execução da query: {time.time() - start_time:.2f} segundos")
+
+        # Verificar se o resultado foi obtido corretamente
+        if result_db:
+            resposta_final = result_db[0][0]  # Pegando o valor real da consulta
+            return jsonify({
+                "resposta": f"O salário do funcionário João é R$ {resposta_final}",
+                "tempo": f"{tempo_total:.2f} segundos"
+            })
+        else:
+            return jsonify({"erro": "Não foi possível encontrar o salário."}), 400
+
+    except Exception as e:
+        print(f"[ReAct] Erro: {str(e)}")
+        return jsonify({"erro": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
